@@ -37,6 +37,10 @@
     </style>
 </head>
 <body class="bg-black text-gray-200">
+    
+    <div id="config-warning" class="hidden bg-red-800 text-white p-4 text-center fixed top-0 left-0 right-0 z-[100]">
+        <strong>Action Required:</strong> Please paste your Firebase configuration object into the script in index.html to connect to the database. Without it, the application cannot run.
+    </div>
 
     <!-- Header Section -->
     <header class="bg-black shadow-lg sticky top-0 z-50 fade-in border-b border-yellow-500/30">
@@ -128,10 +132,10 @@
     <!-- Subscription Modal -->
     <div id="subscribe-modal" class="hidden fixed inset-0 flex items-center justify-center z-[60] p-4">
         <div class="bg-gray-900 border border-yellow-500/50 rounded-lg shadow-2xl p-8 w-full max-w-md text-center modal-enter" id="modal-content">
-            <h2 class="text-2xl font-bold mb-4">Stay Updated!</h2>
-            <p class="text-gray-400 mb-6">Subscribe to our newsletter.</p>
+            <h2 id="subscribe-title" class="text-2xl font-bold mb-4">Stay Updated!</h2>
+            <p id="subscribe-message" class="text-gray-400 mb-6">Subscribe to our newsletter.</p>
             <form id="subscribe-form">
-                <input type="email" placeholder="your.email@example.com" class="w-full px-4 py-2 border border-gray-600 rounded-md mb-4 bg-gray-800 text-white" required>
+                <input id="subscribe-email" type="email" placeholder="your.email@example.com" class="w-full px-4 py-2 border border-gray-600 rounded-md mb-4 bg-gray-800 text-white" required>
                 <button type="submit" class="w-full bg-yellow-500 text-black font-semibold py-2 rounded-md hover:bg-yellow-600 transition">Subscribe Now</button>
             </form>
             <button class="close-modal-btn absolute top-4 right-4 text-gray-400 hover:text-white" data-modal="subscribe-modal">&times;</button>
@@ -143,8 +147,9 @@
         <div class="bg-gray-900 border border-yellow-500/50 rounded-lg shadow-2xl p-8 w-full max-w-md text-center modal-enter" id="login-modal-content">
             <h2 class="text-2xl font-bold mb-4">Publisher Login</h2>
             <p id="login-error" class="text-red-500 mb-4 hidden">Invalid credentials.</p>
-            <form id="login-form">
-                <input type="password" id="password-input" placeholder="Enter password" class="w-full px-4 py-2 border border-gray-600 rounded-md mb-4 bg-gray-800 text-white" required>
+            <form id="login-form" class="space-y-4">
+                <input type="email" id="email-input" placeholder="Enter email" class="w-full px-4 py-2 border border-gray-600 rounded-md bg-gray-800 text-white" required>
+                <input type="password" id="password-input" placeholder="Enter password" class="w-full px-4 py-2 border border-gray-600 rounded-md bg-gray-800 text-white" required>
                 <button type="submit" class="w-full bg-yellow-500 text-black font-semibold py-2 rounded-md hover:bg-yellow-600 transition">Login</button>
             </form>
             <button class="close-modal-btn absolute top-4 right-4 text-gray-400 hover:text-white" data-modal="login-modal">&times;</button>
@@ -191,23 +196,38 @@
         </div>
     </footer>
 
-    <script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+        // --- PASTE YOUR FIREBASE CONFIGURATION HERE ---
+        const firebaseConfig = {
+             apiKey: "AIzaSyAfewFk6_OOMepgapBE9qee7nmlEJ6A61c",
+             authDomain: "tmzone-78c60.firebaseapp.com",
+             projectId: "tmzone-78c60",
+             storageBucket: "tmzone-78c60.firebasestorage.app",
+             messagingSenderId: "658505045427",
+             appId: "1:658505045427:web:7bfc892f03d7933405e7c6",
+             measurementId: "G-V575VFN8EV"
+        };
+        
+        // --- SCRIPT START ---
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const postsCollection = collection(db, 'posts');
+        const subscribersCollection = collection(db, 'subscribers');
+
         document.addEventListener('DOMContentLoaded', () => {
             let lastPage = 'home-page';
-
-            // --- STATE MANAGEMENT ---
-            let allPosts = [
-                { id: 1, category: 'Politics', title: 'Global Tensions: A New Cold War?', description: 'Analyzing the shifting alliances and rising conflicts that are redefining international relations.', image: 'https://placehold.co/600x400/ca8a04/111827?text=Politics', isFeatured: true },
-                { id: 2, category: 'Politics', title: "Healthcare Reform: What's Next?", description: 'A deep dive into the ongoing debate over healthcare and what new proposals could mean for you.', image: 'https://placehold.co/600x400/ca8a04/111827?text=Politics', isFeatured: false },
-                { id: 3, category: 'Opinion', title: 'The Echo Chamber: Is Social Media Dividing Us?', description: 'An exploration of how algorithms and online discourse are impacting political polarization.', image: 'https://placehold.co/600x400/ca8a04/111827?text=Opinion', isFeatured: false },
-                { id: 4, category: 'World News', title: 'Inflation and the Economy: A Look Ahead', description: 'Experts weigh in on the future of the economy and the potential for a recession.', image: 'https://placehold.co/600x400/ca8a04/111827?text=World+News', isFeatured: false },
-                { id: 5, category: 'Politics', title: 'New Bill Aims to Tackle Climate Change', description: 'Inside the new landmark legislation and its potential impact on the environment and industry.', image: 'https://placehold.co/600x400/ca8a04/111827?text=Politics', isFeatured: false },
-                { id: 6, category: 'Politics', title: 'Tracking Midterm Election Promises', description: 'Are politicians keeping their campaign promises? We investigate the progress so far.', image: 'https://placehold.co/600x400/ca8a04/111827?text=Politics', isFeatured: false }
-            ];
+            let allPosts = [];
             let postsToShow = 3;
             let isLoggedIn = false;
 
-            // --- ELEMENT SELECTORS ---
             const pages = document.querySelectorAll('.page-content');
             const navLinks = document.querySelectorAll('.nav-link');
             const postsGrid = document.getElementById('posts-grid');
@@ -218,8 +238,6 @@
             const mobileMenu = document.getElementById('mobile-menu');
             const mobileMenuButton = document.getElementById('mobile-menu-button');
             const adminPostsTable = document.getElementById('admin-posts-table');
-            
-            // --- AUTH & MODAL SELECTORS ---
             const modalBackdrop = document.getElementById('modal-backdrop');
             const loginBtn = document.getElementById('login-btn');
             const logoutBtn = document.getElementById('logout-btn');
@@ -228,12 +246,10 @@
             const loginError = document.getElementById('login-error');
             const createPostBtn = document.getElementById('create-post-btn');
             const postForm = document.getElementById('post-form');
+            const subscribeForm = document.getElementById('subscribe-form');
 
-            // --- GENERAL FUNCTIONS ---
             function showPage(pageId) {
-                if (pageId !== 'single-post-page') {
-                    lastPage = pageId;
-                }
+                if (pageId !== 'single-post-page') lastPage = pageId;
                 pages.forEach(page => page.classList.add('hidden'));
                 document.getElementById(pageId)?.classList.remove('hidden');
                 window.scrollTo(0, 0);
@@ -247,21 +263,18 @@
 
             function closeModal(modalId) {
                 const modal = document.getElementById(modalId);
-                if (modal) {
-                    const content = modal.querySelector('.modal-enter');
-                    content?.classList.add('modal-leave');
-                    setTimeout(() => {
-                        modal.classList.add('hidden');
-                        content?.classList.remove('modal-leave');
-                        modalBackdrop.classList.add('hidden');
-                    }, 300);
-                }
+                if (!modal) return;
+                const content = modal.querySelector('.modal-enter');
+                content?.classList.add('modal-leave');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    content?.classList.remove('modal-leave');
+                    modalBackdrop.classList.add('hidden');
+                }, 300);
             }
-            
-            // --- UI UPDATE FUNCTIONS ---
-            function updateNavLinks() {
+
+            function updateNavLinksUI() {
                 const navLinkHTML = (target, category, text) => `<a href="#" class="block py-2 text-gray-300 hover:text-yellow-400 nav-link" data-target="${target}" ${category ? `data-category="${category}"` : ''}>${text}</a>`;
-                
                 const loggedOutLinks = `
                     ${navLinkHTML('home-page', null, 'Home')}
                     ${navLinkHTML('politics-page', 'Politics', 'Politics')}
@@ -269,13 +282,10 @@
                     ${navLinkHTML('opinion-page', 'Opinion', 'Opinion')}
                     <a href="#" id="mobile-login-btn" class="block py-2 text-gray-300 hover:text-yellow-400">Login</a>
                     <a href="#" id="mobile-subscribe-btn" class="block mt-2 bg-yellow-500 text-black font-semibold px-4 py-2 rounded-md hover:bg-yellow-600 text-center">Subscribe</a>`;
-                
                 const loggedInLinks = `
                     ${navLinkHTML('home-page', null, 'Home')}
                     ${navLinkHTML('admin-page', null, 'Dashboard')}
-                    <a href="#" id="mobile-logout-btn" class="block py-2 text-gray-300 hover:text-yellow-400">Logout</a>
-                    <a href="#" id="mobile-subscribe-btn" class="block mt-2 bg-yellow-500 text-black font-semibold px-4 py-2 rounded-md hover:bg-yellow-600 text-center">Subscribe</a>`;
-
+                    <a href="#" id="mobile-logout-btn" class="block py-2 text-gray-300 hover:text-yellow-400">Logout</a>`;
                 mobileMenu.innerHTML = isLoggedIn ? loggedInLinks : loggedOutLinks;
                 
                 document.getElementById('mobile-subscribe-btn')?.addEventListener('click', (e) => { e.preventDefault(); openModal('subscribe-modal'); });
@@ -284,89 +294,52 @@
                 } else {
                     document.getElementById('mobile-login-btn')?.addEventListener('click', (e) => { e.preventDefault(); openModal('login-modal'); });
                 }
-                
                 mobileMenu.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', handleNavLinkClick));
-
                 loginBtn.classList.toggle('hidden', isLoggedIn);
                 logoutBtn.classList.toggle('hidden', !isLoggedIn);
                 dashboardLink.classList.toggle('hidden', !isLoggedIn);
             }
-            
+
             function handleNavLinkClick(e) {
                 e.preventDefault();
                 const pageId = e.currentTarget.dataset.target;
                 const category = e.currentTarget.dataset.category;
-                if (category) {
-                    renderCategoryPage(pageId, category);
-                }
+                if (category) renderCategoryPage(pageId, category);
                 showPage(pageId);
             }
 
-            // --- AUTHENTICATION ---
-            function handleLogin(e) {
+            async function handleLogin(e) {
                 e.preventDefault();
+                const email = document.getElementById('email-input').value;
                 const password = document.getElementById('password-input').value;
-                if (password === 'admin123') { // Simple password check
-                    isLoggedIn = true;
-                    loginError.classList.add('hidden');
-                    updateNavLinks();
+                loginError.classList.add('hidden');
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
                     closeModal('login-modal');
-                    showPage('admin-page');
-                } else {
+                } catch (error) {
+                    loginError.textContent = "Error: " + error.message;
                     loginError.classList.remove('hidden');
                 }
             }
 
-            function handleLogout(e) {
+            async function handleLogout(e) {
                 e.preventDefault();
-                isLoggedIn = false;
-                updateNavLinks();
+                await signOut(auth);
                 showPage('home-page');
             }
 
-            // --- POST RENDERING (PUBLIC) ---
             function createPostCard(post) {
                 const card = document.createElement('div');
                 card.className = `post-card bg-gray-900 rounded-lg shadow-lg overflow-hidden transform hover:-translate-y-2 transition-transform duration-300 fade-in`;
-                card.innerHTML = `
-                    <img class="w-full h-48 object-cover" src="${post.image}" alt="Blog post image">
-                    <div class="p-6">
-                        <p class="text-sm text-yellow-400">${post.category}</p>
-                        <h3 class="text-xl font-bold mt-2 mb-3 text-white">${post.title}</h3>
-                        <p class="text-gray-400 text-sm mb-4">${post.description}</p>
-                        <a href="#" class="read-more-link text-yellow-500 font-semibold hover:underline">Read More &rarr;</a>
-                    </div>`;
-                card.querySelector('.read-more-link').addEventListener('click', (e) => {
-                    e.preventDefault();
-                    showSinglePost(post);
-                });
+                card.innerHTML = `<img class="w-full h-48 object-cover" src="${post.image}" alt="Blog post image"><div class="p-6"><p class="text-sm text-yellow-400">${post.category}</p><h3 class="text-xl font-bold mt-2 mb-3 text-white">${post.title}</h3><p class="text-gray-400 text-sm mb-4">${post.description}</p><a href="#" class="read-more-link text-yellow-500 font-semibold hover:underline">Read More &rarr;</a></div>`;
+                card.querySelector('.read-more-link').addEventListener('click', (e) => { e.preventDefault(); showSinglePost(post); });
                 return card;
             }
 
             function renderFeaturedPost() {
                 const featuredPost = allPosts.find(p => p.isFeatured) || allPosts[0];
-                if (!featuredPost) {
-                    featuredPostSection.innerHTML = '';
-                    return;
-                };
-                featuredPostSection.innerHTML = `
-                    <div class="bg-gray-900 rounded-lg shadow-xl overflow-hidden md:flex">
-                        <div class="md:w-1/2">
-                            <img class="h-64 w-full object-cover md:h-full" src="${featuredPost.image}" alt="Featured blog post image">
-                        </div>
-                        <div class="p-8 md:w-1/2 flex flex-col justify-center">
-                            <p class="text-yellow-400 font-semibold">${featuredPost.category}</p>
-                            <h1 class="text-3xl md:text-4xl font-bold text-white mt-2 mb-4">${featuredPost.title}</h1>
-                            <p class="text-gray-400 mb-6">${featuredPost.description}</p>
-                            <div class="flex items-center">
-                                <img class="w-12 h-12 rounded-full mr-4" src="https://placehold.co/100x100/e2e8f0/333333?text=A" alt="Author avatar">
-                                <div>
-                                    <p class="font-semibold text-gray-200">Admin</p>
-                                    <p class="text-sm text-gray-400">${new Date().toLocaleDateString()} &middot; 8 min read</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
+                if (!featuredPost) { featuredPostSection.innerHTML = ''; return; };
+                featuredPostSection.innerHTML = `<div class="bg-gray-900 rounded-lg shadow-xl overflow-hidden md:flex"><div class="md:w-1/2"><img class="h-64 w-full object-cover md:h-full" src="${featuredPost.image}" alt="Featured post"></div><div class="p-8 md:w-1/2 flex flex-col justify-center"><p class="text-yellow-400 font-semibold">${featuredPost.category}</p><h1 class="text-3xl md:text-4xl font-bold text-white mt-2 mb-4">${featuredPost.title}</h1><p class="text-gray-400 mb-6">${featuredPost.description}</p></div></div>`;
             }
 
             function renderPublicPosts() {
@@ -376,46 +349,28 @@
                 loadMoreBtn.classList.toggle('hidden', postsToShow >= allPosts.length);
             }
 
-             function renderCategoryPage(pageId, category) {
-                const page = document.getElementById(pageId);
-                const grid = page.querySelector('.category-posts-grid');
+            function renderCategoryPage(pageId, category) {
+                const grid = document.getElementById(pageId).querySelector('.category-posts-grid');
                 grid.innerHTML = '';
                 const categoryPosts = allPosts.filter(post => post.category === category);
                 if (categoryPosts.length > 0) {
                     categoryPosts.forEach(post => grid.appendChild(createPostCard(post)));
                 } else {
-                    grid.innerHTML = `<p class="text-center col-span-3 text-gray-400">No posts found in this category.</p>`;
+                    grid.innerHTML = `<p class="text-center col-span-3 text-gray-400">No posts in this category.</p>`;
                 }
             }
 
             function showSinglePost(post) {
-                postContentEl.innerHTML = `
-                    <p class="text-lg text-yellow-400 font-semibold mb-4">${post.category}</p>
-                    <h1 class="text-4xl md:text-5xl font-bold text-white mb-6">${post.title}</h1>
-                    <img class="w-full h-auto max-h-96 object-cover rounded-lg mb-8" src="${post.image}" alt="">
-                    <div class="prose prose-lg prose-invert max-w-none">
-                       <p>${post.description}</p>
-                       <p>This is a sample full post content. In a real application, this would be fetched from a database and could contain much more information formatted with HTML.</p>
-                       <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-                    </div>`;
+                postContentEl.innerHTML = `<p class="text-lg text-yellow-400 font-semibold mb-4">${post.category}</p><h1 class="text-4xl md:text-5xl font-bold text-white mb-6">${post.title}</h1><img class="w-full h-auto max-h-96 object-cover rounded-lg mb-8" src="${post.image}" alt=""><div class="prose prose-lg prose-invert max-w-none"><p>${post.description}</p><p>This is where the full post content, fetched from the database, would appear.</p></div>`;
                 showPage('single-post-page');
             }
 
-            // --- POST MANAGEMENT (ADMIN) ---
             function renderAdminTable() {
                 adminPostsTable.innerHTML = '';
                 allPosts.forEach(post => {
                     const row = document.createElement('tr');
                     row.className = 'border-b border-gray-700';
-                    row.innerHTML = `
-                        <td class="p-4">${post.title}</td>
-                        <td class="p-4">${post.category}</td>
-                        <td class="p-4">${post.isFeatured ? '<span class="text-green-400 font-semibold">Featured</span>' : '-'}</td>
-                        <td class="p-4 space-x-2 whitespace-nowrap">
-                            <button class="feature-btn text-green-500 hover:underline" data-id="${post.id}">${post.isFeatured ? 'Unfeature' : 'Feature'}</button>
-                            <button class="edit-btn text-yellow-400 hover:underline" data-id="${post.id}">Edit</button>
-                            <button class="delete-btn text-red-500 hover:underline" data-id="${post.id}">Delete</button>
-                        </td>`;
+                    row.innerHTML = `<td class="p-4">${post.title}</td><td class="p-4">${post.category}</td><td class="p-4">${post.isFeatured ? '<span class="text-green-400 font-semibold">Featured</span>' : '-'}</td><td class="p-4 space-x-2 whitespace-nowrap"><button class="feature-btn text-green-500 hover:underline" data-id="${post.id}">${post.isFeatured ? 'Unfeature' : 'Feature'}</button><button class="edit-btn text-yellow-400 hover:underline" data-id="${post.id}">Edit</button><button class="delete-btn text-red-500 hover:underline" data-id="${post.id}">Delete</button></td>`;
                     adminPostsTable.appendChild(row);
                 });
             }
@@ -436,89 +391,131 @@
                 openModal('post-form-modal');
             }
 
-            function handlePostFormSubmit(e) {
+            async function handlePostFormSubmit(e) {
                 e.preventDefault();
                 const postId = document.getElementById('post-id-input').value;
-                const newPostData = {
+                const postData = {
                     title: document.getElementById('post-title').value,
                     category: document.getElementById('post-category').value,
                     image: document.getElementById('post-image').value,
                     description: document.getElementById('post-description').value,
                 };
-                if (postId) { // Editing existing post
-                    const postIndex = allPosts.findIndex(p => p.id == postId);
-                    allPosts[postIndex] = { ...allPosts[postIndex], ...newPostData };
-                } else { // Creating new post
-                    newPostData.id = Date.now(); // Simple unique ID
-                    newPostData.isFeatured = false;
-                    allPosts.unshift(newPostData);
+                try {
+                    if (postId) {
+                        await updateDoc(doc(db, "posts", postId), postData);
+                    } else {
+                        postData.isFeatured = false;
+                        await addDoc(postsCollection, postData);
+                    }
+                    closeModal('post-form-modal');
+                } catch(error) {
+                    console.error("Error saving post: ", error);
+                    alert("Could not save the post. See console for details.");
                 }
-                renderAll();
-                closeModal('post-form-modal');
+            }
+            
+            async function handleSubscription(e) {
+                e.preventDefault();
+                const emailInput = document.getElementById('subscribe-email');
+                const email = emailInput.value;
+                try {
+                    await addDoc(subscribersCollection, {
+                        email: email,
+                        subscribedAt: serverTimestamp()
+                    });
+                    document.getElementById('subscribe-title').textContent = "Success!";
+                    document.getElementById('subscribe-message').textContent = "You have been added to the newsletter.";
+                    subscribeForm.classList.add('hidden');
+                    setTimeout(() => {
+                        closeModal('subscribe-modal');
+                        // Reset modal for next time
+                        document.getElementById('subscribe-title').textContent = "Stay Updated!";
+                        document.getElementById('subscribe-message').textContent = "Subscribe to our newsletter.";
+                        subscribeForm.classList.remove('hidden');
+                        emailInput.value = '';
+                    }, 2000);
+
+                } catch (error) {
+                    console.error("Error adding subscriber: ", error);
+                    document.getElementById('subscribe-message').textContent = "Could not subscribe. Please try again.";
+                    document.getElementById('subscribe-message').classList.add('text-red-500');
+                }
             }
 
-            function handleDeletePost(postId) {
+            async function handleDeletePost(postId) {
                 if (confirm('Are you sure you want to delete this post?')) {
-                    allPosts = allPosts.filter(p => p.id != postId);
-                    renderAll();
+                    try {
+                        await deleteDoc(doc(db, "posts", postId));
+                    } catch(error) {
+                        console.error("Error deleting post: ", error);
+                        alert("Could not delete the post. See console for details.");
+                    }
                 }
             }
 
-            function handleFeaturePost(postId) {
-                allPosts.forEach(p => p.isFeatured = (p.id == postId));
-                renderAll();
+            async function handleFeaturePost(postId) {
+                const batch = writeBatch(db);
+                const currentFeatured = allPosts.find(p => p.isFeatured);
+                if (currentFeatured && currentFeatured.id !== postId) {
+                    batch.update(doc(db, "posts", currentFeatured.id), { isFeatured: false });
+                }
+                const postToFeature = allPosts.find(p => p.id === postId);
+                batch.update(doc(db, "posts", postId), { isFeatured: !postToFeature.isFeatured });
+                try {
+                    await batch.commit();
+                } catch(error) {
+                    console.error("Error updating featured status: ", error);
+                    alert("Could not update featured status. See console for details.");
+                }
             }
             
             function renderAll() {
                 renderFeaturedPost();
                 renderPublicPosts();
-                renderAdminTable();
+                if (isLoggedIn) renderAdminTable();
             }
 
-            // --- EVENT LISTENERS ---
-            navLinks.forEach(link => link.addEventListener('click', handleNavLinkClick));
-
-            mobileMenuButton.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
-            loadMoreBtn.addEventListener('click', () => {
-                postsToShow += 3;
-                renderPublicPosts();
+            // --- LISTENERS ---
+            onAuthStateChanged(auth, user => {
+                isLoggedIn = !!user;
+                updateNavLinksUI();
+                if (isLoggedIn) {
+                    showPage('admin-page');
+                } else if(document.getElementById('admin-page').style.display !== 'none') {
+                    showPage('home-page');
+                }
             });
+
+            onSnapshot(postsCollection, (snapshot) => {
+                allPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderAll();
+            }, (error) => {
+                console.error("Firestore snapshot error: ", error);
+            });
+
+            navLinks.forEach(link => link.addEventListener('click', handleNavLinkClick));
+            mobileMenuButton.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
+            loadMoreBtn.addEventListener('click', () => { postsToShow += 3; renderPublicPosts(); });
             backBtn.addEventListener('click', () => showPage(lastPage));
-            
-            // Modals
-            document.querySelectorAll('.close-modal-btn').forEach(btn => 
-                btn.addEventListener('click', () => closeModal(btn.dataset.modal))
-            );
+            document.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.modal)));
             document.getElementById('subscribe-btn').addEventListener('click', () => openModal('subscribe-modal'));
-            
-            // Auth
             loginBtn.addEventListener('click', () => openModal('login-modal'));
             logoutBtn.addEventListener('click', handleLogout);
             loginForm.addEventListener('submit', handleLogin);
-            
-            // Admin Actions
             createPostBtn.addEventListener('click', () => openPostForm());
             postForm.addEventListener('submit', handlePostFormSubmit);
+            subscribeForm.addEventListener('submit', handleSubscription);
             adminPostsTable.addEventListener('click', (e) => {
                 const target = e.target;
                 const postId = target.dataset.id;
                 if (!postId) return;
-
-                if (target.classList.contains('edit-btn')) {
-                    const post = allPosts.find(p => p.id == postId);
-                    openPostForm(post);
-                }
-                if (target.classList.contains('delete-btn')) {
-                    handleDeletePost(postId);
-                }
-                if (target.classList.contains('feature-btn')) {
-                    handleFeaturePost(postId);
-                }
+                if (target.classList.contains('edit-btn')) openPostForm(allPosts.find(p => p.id == postId));
+                if (target.classList.contains('delete-btn')) handleDeletePost(postId);
+                if (target.classList.contains('feature-btn')) handleFeaturePost(postId);
             });
 
             // --- INITIAL LOAD ---
-            renderAll();
-            updateNavLinks();
+            updateNavLinksUI();
             showPage('home-page');
         });
     </script>
